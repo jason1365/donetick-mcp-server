@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  donetick-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: donetick-mcp-server
+    image: donetick-mcp-server:latest
+
+    # Environment variables
+    environment:
+      - DONETICK_BASE_URL=${DONETICK_BASE_URL:-https://donetick.example.com}
+      - DONETICK_API_TOKEN=${DONETICK_API_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RATE_LIMIT_PER_SECOND=${RATE_LIMIT_PER_SECOND:-10.0}
+      - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-10}
+
+    # For stdio transport (required for Claude Desktop)
+    stdin_open: true
+    tty: true
+
+    # Resource limits (recommended for production)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Optional: Mount configuration
+    # volumes:
+    #   - ./config:/app/config:ro
+    #   - ./logs:/app/logs
+
+    # Optional: For HTTP transport (uncomment if needed)
+    # ports:
+    #   - "3000:3000"
+
+    # Optional: Network isolation (uncomment for stdio-only)
+    # network_mode: "none"
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only root filesystem (with tmpfs for temp files)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+
+# Optional: Define custom network
+# networks:
+#   mcp-network:
+#     driver: bridge
