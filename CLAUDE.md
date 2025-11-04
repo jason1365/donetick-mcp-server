@@ -379,6 +379,17 @@ Or for Python direct:
 
 ## Recent Enhancements
 
+### v0.3.1 - Critical Validation Improvements
+
+**New in v0.3.1** (Bug Fixes):
+- **Fixed priority range**: Now correctly 0-4 (was incorrectly 1-5)
+- **Added 4 missing assignStrategy values**: Now supports all 7 strategies (least_assigned, keep_last_assigned, random_except_last_assigned, no_assignee)
+- **Enhanced error messages**: Username and label lookups now fail with helpful guidance instead of silent warnings
+- **Stricter validation**: Invalid day names now raise errors instead of being silently ignored
+- **Template limit enforcement**: notificationMetadata now validates max 5 templates
+- **Units clarification**: completionWindow and deadlineOffset documented as SECONDS (not days)
+- **Comprehensive validators**: Added validation for frequencyMetadata structure (days, weekPattern, time, timezone)
+
 ### v0.3.0 - User Management Tools
 
 **New in v0.3.0**:
