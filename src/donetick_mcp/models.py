@@ -402,7 +402,7 @@ class ChoreCreate(BaseModel):
 
 
 class ChoreUpdate(BaseModel):
-    """Model for updating a chore (Premium feature)."""
+    """Model for updating a chore."""
 
     model_config = ConfigDict(
         json_schema_extra={

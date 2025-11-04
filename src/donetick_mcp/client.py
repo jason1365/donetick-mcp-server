@@ -396,8 +396,6 @@ class DonetickClient:
         """
         Update an existing chore.
 
-        Note: This is a Premium/Plus feature.
-
         Args:
             chore_id: Chore ID to update
             update: ChoreUpdate object with fields to update
@@ -441,8 +439,6 @@ class DonetickClient:
         """
         Mark a chore as complete.
 
-        Note: This is a Premium/Plus feature.
-
         Args:
             chore_id: Chore ID to complete
             completed_by: User ID who completed the chore (optional)
@@ -466,11 +462,82 @@ class DonetickClient:
         logger.info(f"Completed chore {chore_id}: {completed_chore.name}")
         return completed_chore
 
+    async def update_chore_priority(self, chore_id: int, priority: int) -> Chore:
+        """
+        Update a chore's priority level.
+
+        Args:
+            chore_id: Chore ID to update
+            priority: Priority level (0=unset, 1=lowest, 4=highest)
+
+        Returns:
+            Updated Chore object
+
+        Raises:
+            ValueError: If priority is not in range 0-4
+        """
+        if not 0 <= priority <= 4:
+            raise ValueError(f"Priority must be 0-4, got {priority}")
+
+        logger.info(f"Updating chore {chore_id} priority to {priority}")
+        data = await self._request(
+            "PUT",
+            f"/api/v1/chores/{chore_id}/priority",
+            json={"priority": priority},
+        )
+
+        updated_chore = Chore(**data)
+        logger.info(f"Updated chore {chore_id} priority: {priority}")
+        return updated_chore
+
+    async def update_chore_assignee(self, chore_id: int, user_id: int) -> Chore:
+        """
+        Reassign a chore to a different user.
+
+        Args:
+            chore_id: Chore ID to update
+            user_id: User ID of the new assignee
+
+        Returns:
+            Updated Chore object
+        """
+        logger.info(f"Reassigning chore {chore_id} to user {user_id}")
+        data = await self._request(
+            "PUT",
+            f"/api/v1/chores/{chore_id}/assignee",
+            json={"userId": user_id},
+        )
+
+        updated_chore = Chore(**data)
+        logger.info(f"Reassigned chore {chore_id} to user {user_id}")
+        return updated_chore
+
+    async def skip_chore(self, chore_id: int) -> Chore:
+        """
+        Skip a chore without marking it complete.
+
+        For recurring chores, this schedules the next occurrence without
+        completing the current one. Useful for chores that aren't needed.
+
+        Args:
+            chore_id: Chore ID to skip
+
+        Returns:
+            Updated Chore object with new due date
+        """
+        logger.info(f"Skipping chore {chore_id}")
+        data = await self._request(
+            "POST",
+            f"/api/v1/chores/{chore_id}/skip",
+        )
+
+        skipped_chore = Chore(**data)
+        logger.info(f"Skipped chore {chore_id}, next due: {skipped_chore.nextDueDate}")
+        return skipped_chore
+
     async def get_circle_members(self) -> list[CircleMember]:
         """
         Get all members in the user's circle.
-
-        Note: This is a Premium/Plus feature.
 
         Returns:
             List of CircleMember objects

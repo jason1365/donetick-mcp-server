@@ -307,7 +307,6 @@ async def list_tools() -> list[Tool]:
             name="complete_chore",
             description=(
                 "Mark a chore as complete. "
-                "This is a Donetick Plus/Premium feature. "
                 "Optionally specify which user completed the chore. "
                 "Returns the updated chore with completion timestamp."
             ),
@@ -332,8 +331,7 @@ async def list_tools() -> list[Tool]:
                 "Update an existing chore with new values. "
                 "Can modify any chore property including name, description, schedule, assignees, "
                 "priority, points, labels, privacy settings, and more. "
-                "Only provide fields you want to change - other fields remain unchanged. "
-                "Premium/Plus feature."
+                "Only provide fields you want to change - other fields remain unchanged."
             ),
             inputSchema={
                 "type": "object",
@@ -438,6 +436,74 @@ async def list_tools() -> list[Tool]:
                     "chore_id": {
                         "type": "integer",
                         "description": "The ID of the chore to delete",
+                    },
+                },
+                "required": ["chore_id"],
+            },
+        ),
+        Tool(
+            name="update_chore_priority",
+            description=(
+                "Update a chore's priority level (0-4). "
+                "Use this to adjust how urgent a chore is without editing other details. "
+                "0=unset, 1=lowest, 2=low, 3=medium, 4=highest. "
+                "Returns the updated chore."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore to update",
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4,
+                        "description": "New priority level (0=unset, 1=lowest, 4=highest)",
+                    },
+                },
+                "required": ["chore_id", "priority"],
+            },
+        ),
+        Tool(
+            name="update_chore_assignee",
+            description=(
+                "Reassign a chore to a different circle member. "
+                "Use this to dynamically change who is responsible for a chore. "
+                "Get member IDs from list_circle_members or get_circle_members. "
+                "Returns the updated chore."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore to update",
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "description": "User ID of the new assignee (from list_circle_members)",
+                    },
+                },
+                "required": ["chore_id", "user_id"],
+            },
+        ),
+        Tool(
+            name="skip_chore",
+            description=(
+                "Skip a chore without marking it complete. "
+                "For recurring chores, this schedules the next occurrence without "
+                "completing the current one. Useful for chores that aren't needed this cycle. "
+                "One-time chores will be marked as inactive. "
+                "Returns the updated chore with the new due date."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore to skip",
                     },
                 },
                 "required": ["chore_id"],
@@ -835,6 +901,48 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 )
             ]
 
+        elif name == "update_chore_priority":
+            chore_id = arguments["chore_id"]
+            priority = arguments["priority"]
+
+            chore = await client.update_chore_priority(chore_id, priority)
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Successfully updated chore '{chore.name}' (ID: {chore.id}) priority to {priority}\n\n"
+                    + json.dumps(chore.model_dump(), indent=2),
+                )
+            ]
+
+        elif name == "update_chore_assignee":
+            chore_id = arguments["chore_id"]
+            user_id = arguments["user_id"]
+
+            chore = await client.update_chore_assignee(chore_id, user_id)
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Successfully reassigned chore '{chore.name}' (ID: {chore.id}) to user {user_id}\n\n"
+                    + json.dumps(chore.model_dump(), indent=2),
+                )
+            ]
+
+        elif name == "skip_chore":
+            chore_id = arguments["chore_id"]
+
+            chore = await client.skip_chore(chore_id)
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Successfully skipped chore '{chore.name}' (ID: {chore.id}). "
+                    f"Next due date: {chore.nextDueDate}\n\n"
+                    + json.dumps(chore.model_dump(), indent=2),
+                )
+            ]
+
         elif name == "list_labels":
             labels = await client.get_labels()
 
@@ -1023,9 +1131,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )
         elif status_code == 403:
             error_msg = (
-                "Permission denied. This operation may require Donetick Plus membership.\n\n"
-                "💡 Hint: Operations like complete_chore, update_chore, and get_circle_members\n"
-                "   require a Premium/Plus subscription."
+                "Permission denied. You may not have authorization for this operation.\n\n"
+                "💡 Hint: Verify that:\n"
+                "   - You have the correct credentials\n"
+                "   - The resource exists and belongs to your circle\n"
+                "   - You have the necessary permissions (e.g., only creators can delete chores)"
             )
         elif status_code == 404:
             if "chore" in name:

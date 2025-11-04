@@ -140,13 +140,17 @@ The codebase follows a clean separation of concerns:
 - **Purpose**: Exposes Donetick functionality as MCP tools
 - **Transport**: stdio (for Claude Desktop integration)
 - **Global State**: Maintains a single `DonetickClient` instance
-- **Tools Exposed (13 tools)**:
-  - **Chore Management (5 tools)**:
+- **Tools Exposed (16 tools)**:
+  - **Chore Management (8 tools)**:
     - `list_chores`: List with filters (active status, assigned user)
     - `get_chore`: Get by ID (uses direct GET endpoint, includes sub-tasks)
     - `create_chore`: Create new chore (supports sub-tasks)
     - `complete_chore`: Mark complete (Premium feature)
+    - `update_chore`: Update basic fields (name, description, due date)
+    - `update_chore_priority`: Update priority level (0-4)
+    - `update_chore_assignee`: Reassign chore to different user
     - `delete_chore`: Delete chore (creator only)
+    - `skip_chore`: Skip chore without marking complete (reschedule next occurrence)
   - **Label Management (4 tools)**:
     - `list_labels`: List all labels in the circle
     - `create_label`: Create new custom label
@@ -379,6 +383,23 @@ Or for Python direct:
 
 ## Recent Enhancements
 
+### v0.3.2 - Chore Update & Skip Operations
+
+**New in v0.3.2**:
+- Added `update_chore` tool for editing basic chore details (name, description, due date)
+- Added `update_chore_priority` tool for changing chore priority (0-4 range)
+- Added `update_chore_assignee` tool for reassigning chores to different users
+- Added `skip_chore` tool for skipping recurring chores without marking complete
+- Comprehensive analysis and documentation of API design differences between create and update operations
+- Full test coverage for all new tools (4 client + 4 server tests)
+- Total tool count increased from 13 to 16 MCP tools
+
+**Key Feature**: These tools expose the specialized Donetick API endpoints that follow domain-driven design principles:
+- Generic `update_chore` for basic edits (name, description, due_date only)
+- Specialized `update_chore_priority` for priority changes
+- Specialized `update_chore_assignee` for assignment rotation
+- `skip_chore` for recurring chore management without completion
+
 ### v0.3.1 - Critical Validation Improvements
 
 **New in v0.3.1** (Bug Fixes):
@@ -396,7 +417,7 @@ Or for Python direct:
 - Added `list_circle_users` tool for viewing all circle members
 - Added `get_user_profile` tool for detailed user profile information
 - Enhanced user data models (User and UserProfile)
-- Total tool count increased to 13 MCP tools
+- Total tool count increased from 11 to 13 MCP tools
 
 ### Core Features (Full API)
 

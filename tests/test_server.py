@@ -60,21 +60,24 @@ class TestMCPServer:
         """Test listing available tools."""
         tools = await list_tools()
 
-        assert len(tools) == 13  # 6 chore tools + 4 label tools + 3 user/member tools
+        assert len(tools) == 16  # 9 chore tools (6 CRUD + 3 update/skip) + 4 label tools + 3 user/member tools
         tool_names = [tool.name for tool in tools]
-        # Chore tools
+        # Chore tools (9 total)
         assert "list_chores" in tool_names
         assert "get_chore" in tool_names
         assert "create_chore" in tool_names
         assert "complete_chore" in tool_names
         assert "update_chore" in tool_names
         assert "delete_chore" in tool_names
-        # Label tools
+        assert "update_chore_priority" in tool_names
+        assert "update_chore_assignee" in tool_names
+        assert "skip_chore" in tool_names
+        # Label tools (4 total)
         assert "list_labels" in tool_names
         assert "create_label" in tool_names
         assert "update_label" in tool_names
         assert "delete_label" in tool_names
-        # Member/user tools
+        # Member/user tools (3 total)
         assert "get_circle_members" in tool_names
         assert "list_circle_users" in tool_names
         assert "get_user_profile" in tool_names
@@ -246,6 +249,63 @@ class TestMCPServer:
 
         assert len(result) == 1
         assert "Successfully deleted" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_update_chore_priority_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login, clear_cache):
+        """Test update_chore_priority tool execution."""
+        updated_chore = {**sample_chore_data, "priority": 4}
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1/priority",
+            json=updated_chore,
+            method="PUT",
+        )
+
+        result = await call_tool("update_chore_priority", {"chore_id": 1, "priority": 4})
+
+        assert len(result) == 1
+        assert "Successfully updated" in result[0].text
+        assert "priority to 4" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_update_chore_priority_validation(self, httpx_mock: HTTPXMock):
+        """Test update_chore_priority with invalid priority."""
+        result = await call_tool("update_chore_priority", {"chore_id": 1, "priority": 5})
+
+        assert len(result) == 1
+        assert "Error" in result[0].text or "must be 0-4" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_update_chore_assignee_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login, clear_cache):
+        """Test update_chore_assignee tool execution."""
+        updated_chore = {**sample_chore_data, "assignedTo": 2}
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1/assignee",
+            json=updated_chore,
+            method="PUT",
+        )
+
+        result = await call_tool("update_chore_assignee", {"chore_id": 1, "user_id": 2})
+
+        assert len(result) == 1
+        assert "Successfully reassigned" in result[0].text
+        assert "user 2" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_skip_chore_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login, clear_cache):
+        """Test skip_chore tool execution."""
+        # For a recurring chore, skip schedules next occurrence
+        updated_chore = {**sample_chore_data, "nextDueDate": "2025-11-17"}
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1/skip",
+            json=updated_chore,
+            method="POST",
+        )
+
+        result = await call_tool("skip_chore", {"chore_id": 1})
+
+        assert len(result) == 1
+        assert "Successfully skipped" in result[0].text
+        assert "next due date" in result[0].text.lower()
 
     @pytest.mark.asyncio
     async def test_tool_error_handling(self, httpx_mock: HTTPXMock):
