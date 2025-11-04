@@ -7,23 +7,6 @@
 
 A production-ready Model Context Protocol (MCP) server for [Donetick](https://donetick.com) chores management. Enables Claude and other MCP-compatible AI assistants to interact with your Donetick instance through a secure, rate-limited API.
 
-## Breaking Changes in v2.0.0
-
-**Important**: Version 2.0.0 introduces breaking changes to authentication. If you're upgrading from v1.x, please read the [Migration Guide](MIGRATION.md).
-
-**What Changed**:
-- Authentication now uses JWT with username/password (instead of API tokens)
-- API endpoints switched from eAPI to Full API
-- 9 previously non-functional features now work (frequency metadata, rolling schedules, multiple assignees, assignment strategies, nagging notifications, pre-due notifications, private chores, points, sub-tasks)
-- Premium membership no longer required for advanced features
-
-**Quick Migration**:
-1. Replace `DONETICK_API_TOKEN` environment variable with `DONETICK_USERNAME` and `DONETICK_PASSWORD`
-2. Update your `.env` file or Claude Desktop configuration
-3. Restart the server
-
-See the [Migration Guide](MIGRATION.md) for detailed instructions.
-
 ## Features
 
 - **13 MCP Tools**: Complete chore management (list, get, create, complete, delete), label organization (list, create, update, delete), circle member information, user management (list circle users, get user profile)
@@ -158,7 +141,7 @@ Then configure Claude Desktop to use the installed command:
 
 ## Authentication
 
-v2.0.0 uses JWT-based authentication with your Donetick credentials.
+The MCP server uses JWT-based authentication with your Donetick credentials.
 
 **What You Need**:
 - Your Donetick username (same as web login)

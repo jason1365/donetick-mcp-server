@@ -154,7 +154,7 @@ class TestMCPServer:
         assert "not found" in result[0].text.lower()
 
     @pytest.mark.asyncio
-    async def test_create_chore_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login, clear_cache):
+    async def test_create_chore_tool(self, sample_chore_data, httpx_mock: HTTPXMock, clear_cache):
         """Test create_chore tool execution."""
         # Mock POST response (API returns {'res': chore_id})
         httpx_mock.add_response(
@@ -183,7 +183,7 @@ class TestMCPServer:
         assert "Test Chore" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_create_chore_minimal(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+    async def test_create_chore_minimal(self, sample_chore_data, httpx_mock: HTTPXMock, clear_cache):
         """Test create_chore tool with only required fields."""
         # Mock POST response (API returns {'res': chore_id})
         httpx_mock.add_response(

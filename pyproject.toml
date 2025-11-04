@@ -22,14 +22,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-
-[project.urls]
-Homepage = "https://github.com/jason1365/donetick-mcp-server"
-Documentation = "https://github.com/jason1365/donetick-mcp-server#readme"
-Repository = "https://github.com/jason1365/donetick-mcp-server"
-Issues = "https://github.com/jason1365/donetick-mcp-server/issues"
-Changelog = "https://github.com/jason1365/donetick-mcp-server/releases"
-
 dependencies = [
     "mcp>=1.20.0",
     "httpx>=0.27.0",
@@ -37,6 +29,13 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pytz>=2024.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jason1365/donetick-mcp-server"
+Documentation = "https://github.com/jason1365/donetick-mcp-server#readme"
+Repository = "https://github.com/jason1365/donetick-mcp-server"
+Issues = "https://github.com/jason1365/donetick-mcp-server/issues"
+Changelog = "https://github.com/jason1365/donetick-mcp-server/releases"
 
 [project.optional-dependencies]
 dev = [

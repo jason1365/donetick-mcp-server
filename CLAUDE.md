@@ -379,14 +379,22 @@ Or for Python direct:
 
 ## Recent Enhancements
 
-### v2.0.0 - JWT Authentication & Full API Migration
+### v0.3.0 - User Management Tools
 
-**Breaking Changes**:
-1. **JWT Authentication**: Switched from API tokens to username/password with JWT
-2. **Full API**: Migrated from eAPI to Full API endpoints
-3. **Field Names**: Standardized on camelCase (previously mixed PascalCase/camelCase)
+**New in v0.3.0**:
+- Added `list_circle_users` tool for viewing all circle members
+- Added `get_user_profile` tool for detailed user profile information
+- Enhanced user data models (User and UserProfile)
+- Total tool count increased to 13 MCP tools
 
-**New Features Working**:
+### Core Features (Full API)
+
+**Authentication**:
+1. **JWT Authentication**: Username/password authentication with automatic JWT token management
+2. **Automatic Token Refresh**: Transparent re-authentication when tokens expire
+3. **Secure Credential Storage**: Environment variables only, tokens never persisted to disk
+
+**Chore Management Features**:
 1. **Frequency Metadata**: Configure specific days and times for recurring chores
 2. **Rolling Schedules**: Next due date based on completion vs fixed schedule
 3. **Multiple Assignees**: Assign chores to multiple users simultaneously
@@ -396,14 +404,12 @@ Or for Python direct:
 7. **Private Chores**: Hide chores from other circle members
 8. **Points/Gamification**: Award points for chore completion
 9. **Sub-tasks**: Add checklist items to chores
+10. **Labels**: Custom color-coded tags for organization
+11. **Priority Levels**: 0-4 priority system for task management
 
-**Authentication Improvements**:
-1. **Automatic JWT Management**: Login, token storage, and refresh handled transparently
-2. **In-Memory Tokens**: JWT tokens never persisted to disk
-3. **Session Resilience**: Automatic re-authentication on token expiry
-4. **Credential Security**: Username/password in environment variables only
+### Previous Enhancements
 
-### v0.2.0 - Security & Performance Enhancements
+#### v0.2.0 - Security & Performance
 
 **Security Improvements**:
 1. **HTTPS Enforcement**: Config validation ensures all connections use HTTPS
