@@ -402,15 +402,59 @@ class DonetickClient:
 
         Returns:
             Updated Chore object
+
+        Note:
+            The Donetick API requires the full chore object for updates.
+            This method fetches the current chore, applies the updates,
+            and sends the complete object back to PUT /api/v1/chores/
         """
         logger.info(f"Updating chore {chore_id}")
+
+        # Fetch current chore to get full object
+        current_chore = await self.get_chore(chore_id)
+        if current_chore is None:
+            raise ValueError(f"Chore {chore_id} not found")
+
+        # Convert to dict and apply updates
+        chore_dict = current_chore.model_dump(exclude_none=True)
+
+        update_fields = update.model_dump(exclude_none=True)
+        chore_dict.update(update_fields)
+
+        # Ensure ID is in the payload
+        chore_dict["id"] = chore_id
+
+        # Clean up fields that might cause validation issues
+        # Remove fields that can cause validation errors or contain stale data
+        fields_to_remove = [
+            "createdAt", "updatedAt", "createdBy", "updatedBy",
+            "circleId", "status", "assignees", "assignedTo"
+        ]
+        for field in fields_to_remove:
+            chore_dict.pop(field, None)
+
+        # Clean up labels - remove created_by if null
+        if "labelsV2" in chore_dict and chore_dict["labelsV2"]:
+            for label in chore_dict["labelsV2"]:
+                if "created_by" in label and label["created_by"] is None:
+                    label.pop("created_by")
+
         data = await self._request(
             "PUT",
-            f"/api/v1/chores/{chore_id}",
-            json=update.model_dump(exclude_none=True),
+            "/api/v1/chores/",
+            json=chore_dict,
         )
 
-        updated_chore = Chore(**data)
+        # API returns {"message": "Chore added successfully"} instead of the chore object
+        # Fetch the updated chore to return it
+        if "message" in data:
+            logger.info(f"Update API response: {data.get('message')}")
+            updated_chore = await self.get_chore(chore_id)
+            if updated_chore is None:
+                raise ValueError(f"Chore {chore_id} was updated but could not be retrieved")
+        else:
+            updated_chore = Chore(**data)
+
         logger.info(f"Updated chore {chore_id}: {updated_chore.name}")
         return updated_chore
 
@@ -534,6 +578,62 @@ class DonetickClient:
         skipped_chore = Chore(**data)
         logger.info(f"Skipped chore {chore_id}, next due: {skipped_chore.nextDueDate}")
         return skipped_chore
+
+    async def update_subtask_completion(
+        self,
+        chore_id: int,
+        subtask_id: int,
+        completed: bool
+    ) -> Chore:
+        """
+        Update the completion status of a subtask.
+
+        Marks a subtask as complete or incomplete without completing the entire chore.
+        Useful for tracking progress on chores with multiple steps.
+
+        Args:
+            chore_id: Chore ID containing the subtask
+            subtask_id: Subtask ID to update
+            completed: True to mark complete, False to mark incomplete
+
+        Returns:
+            Updated Chore object with modified subtask
+
+        Raises:
+            ValueError: If subtask not found
+        """
+        logger.info(f"Updating subtask {subtask_id} on chore {chore_id} to completed={completed}")
+
+        # First, fetch the current chore to get all subtasks
+        chore = await self.get_chore(chore_id)
+
+        # Find and update the target subtask
+        updated = False
+        for subtask in chore.subTasks:
+            if subtask.get('id') == subtask_id:
+                if completed:
+                    # Mark as completed with current timestamp
+                    from datetime import datetime, timezone
+                    subtask['completedAt'] = datetime.now(timezone.utc).isoformat()
+                    # Note: completedBy would ideally be set to current user ID
+                    # but we don't track that in the client currently
+                else:
+                    # Mark as incomplete
+                    subtask['completedAt'] = None
+                    subtask['completedBy'] = 0
+                updated = True
+                break
+
+        if not updated:
+            raise ValueError(f"Subtask {subtask_id} not found in chore {chore_id}")
+
+        # Update the chore with modified subtasks
+        from .models import ChoreUpdate
+        update = ChoreUpdate(subTasks=chore.subTasks)
+        updated_chore = await self.update_chore(chore_id, update)
+
+        logger.info(f"Updated subtask {subtask_id} completion status")
+        return updated_chore
 
     async def get_chore_history(self, chore_id: int) -> list[ChoreHistory]:
         """

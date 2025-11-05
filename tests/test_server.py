@@ -50,9 +50,9 @@ class TestMCPServer:
         """Test listing available tools."""
         tools = await list_tools()
 
-        assert len(tools) == 16  # 9 chore tools (6 CRUD + update_chore + 2 update/skip) + 4 label tools + 3 user/member tools
+        assert len(tools) == 20  # 10 chore tools + 4 label tools + 3 user/member tools + 3 history tools
         tool_names = [tool.name for tool in tools]
-        # Chore tools (9 total)
+        # Chore tools (10 total)
         assert "list_chores" in tool_names
         assert "get_chore" in tool_names
         assert "create_chore" in tool_names
@@ -62,6 +62,7 @@ class TestMCPServer:
         assert "update_chore_priority" in tool_names
         assert "update_chore_assignee" in tool_names
         assert "skip_chore" in tool_names
+        assert "update_subtask_completion" in tool_names
         # Label tools (4 total)
         assert "list_labels" in tool_names
         assert "create_label" in tool_names
@@ -71,6 +72,10 @@ class TestMCPServer:
         assert "get_circle_members" in tool_names
         assert "list_circle_users" in tool_names
         assert "get_user_profile" in tool_names
+        # History tools (3 total)
+        assert "get_chore_history" in tool_names
+        assert "get_all_chores_history" in tool_names
+        assert "get_chore_details" in tool_names
 
     @pytest.mark.asyncio
     async def test_list_chores_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
@@ -959,3 +964,128 @@ class TestMCPServer:
         # Server errors are retried transparently to the user
         # Status code may or may not be exposed depending on implementation
         assert len(result[0].text) > 0
+
+    @pytest.mark.asyncio
+    async def test_get_chore_history_tool(self, httpx_mock: HTTPXMock, mock_login):
+        """Test get_chore_history tool execution."""
+        history_data = [
+            {
+                "id": 1,
+                "choreId": 123,
+                
+                "performedAt": "2025-11-05T10:00:00Z",
+                "completedBy": 1,
+                "note": "Completed successfully",
+                "assignedTo": 1,
+                "dueDate": "2025-11-05T00:00:00Z",
+            },
+            {
+                "id": 2,
+                "choreId": 123,
+                
+                "performedAt": "2025-11-04T10:00:00Z",
+                "completedBy": 1,
+                "note": None,
+                "assignedTo": 1,
+                "dueDate": "2025-11-04T00:00:00Z",
+            },
+        ]
+
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/123/history",
+            json={"res": history_data},
+        )
+
+        result = await call_tool("get_chore_history", {"chore_id": 123})
+
+        assert len(result) == 1
+        assert "📊" in result[0].text
+        assert "Completion History for Chore 123" in result[0].text
+        assert "Total completions: 2" in result[0].text
+        assert "TestUser" in result[0].text
+        assert "Completed successfully" in result[0].text
+        assert "2025-11-05T10:00:00Z" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_all_chores_history_tool(self, httpx_mock: HTTPXMock, mock_login):
+        """Test get_all_chores_history tool execution."""
+        history_data = [
+            {
+                "id": 1,
+                "choreId": 123,
+                "choreName": "Test Chore 1",
+                "performedAt": "2025-11-05T10:00:00Z",
+                "completedBy": 1,
+                "note": None,
+                "assignedTo": 1,
+                "dueDate": "2025-11-05T00:00:00Z",
+            },
+            {
+                "id": 2,
+                "choreId": 124,
+                "choreName": "Test Chore 2",
+                "performedAt": "2025-11-04T10:00:00Z",
+                "completedBy": 2,
+                "note": None,
+                "assignedTo": 2,
+                "dueDate": "2025-11-04T00:00:00Z",
+            },
+        ]
+
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/history?limit=50&offset=0",
+            json={"res": history_data},
+        )
+
+        result = await call_tool("get_all_chores_history", {})
+
+        assert len(result) == 1
+        assert "📊" in result[0].text
+        assert "Chore Completion History" in result[0].text
+        assert "Showing 2 entries" in result[0].text
+        assert "Test Chore 1" in result[0].text
+        assert "Test Chore 2" in result[0].text
+        assert "TestUser" in result[0].text
+        assert "TestUser2" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_chore_details_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test get_chore_details tool execution."""
+        history_entry = {
+            "id": 1,
+            "choreId": 123,
+            
+            "performedAt": "2025-11-05T10:00:00Z",
+            "completedBy": 1,
+            "note": None,
+            "assignedTo": 1,
+            "dueDate": "2025-11-05T00:00:00Z",
+        }
+
+        details_data = {
+            **sample_chore_data,
+            "id": 123,
+            "name": "Detailed Test Chore",
+            "totalCompletedCount": 5,
+            "lastCompletedDate": "2025-11-05T10:00:00Z",
+            "lastCompletedBy": 1,
+            "avgDuration": "2h 30m",
+            "history": [history_entry],
+        }
+
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/123/details",
+            json={"res": details_data},
+        )
+
+        result = await call_tool("get_chore_details", {"chore_id": 123})
+
+        assert len(result) == 1
+        assert "📊" in result[0].text
+        assert "Chore Details: Detailed Test Chore" in result[0].text
+        assert "ID: 123" in result[0].text
+        assert "Total Completions: 5" in result[0].text
+        assert "Average Duration: 2h 30m" in result[0].text
+        assert "Last Completion" in result[0].text
+        assert "2025-11-05T10:00:00Z" in result[0].text
+        assert "TestUser" in result[0].text

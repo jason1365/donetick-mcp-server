@@ -44,7 +44,9 @@ async def list_tools() -> list[Tool]:
                 "List all chores from Donetick. "
                 "Optionally filter by active status or assigned user. "
                 "Returns comprehensive chore details including name, description, "
-                "due dates, assignees, and status."
+                "due dates, assignees, and status. "
+                "Use detail_level to control response size: 'brief' for essential fields only, "
+                "'full' for complete details (default)."
             ),
             inputSchema={
                 "type": "object",
@@ -56,6 +58,11 @@ async def list_tools() -> list[Tool]:
                     "assigned_to_user_id": {
                         "type": "integer",
                         "description": "Filter by assigned user ID (null=all users)",
+                    },
+                    "detail_level": {
+                        "type": "string",
+                        "enum": ["brief", "full"],
+                        "description": "Response format: 'brief' (id, name, status, assignee, dueDate) or 'full' (all fields). Default: 'full'",
                     },
                 },
             },
@@ -510,6 +517,33 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="update_subtask_completion",
+            description=(
+                "Mark a subtask as complete or incomplete within a chore. "
+                "This allows tracking progress on chores with multiple steps without "
+                "completing the entire chore. Useful for checklists and multi-step tasks. "
+                "Returns the updated chore with subtask progress."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore containing the subtask",
+                    },
+                    "subtask_id": {
+                        "type": "integer",
+                        "description": "The ID of the subtask to update",
+                    },
+                    "completed": {
+                        "type": "boolean",
+                        "description": "True to mark complete, False to mark incomplete",
+                    },
+                },
+                "required": ["chore_id", "subtask_id", "completed"],
+            },
+        ),
+        Tool(
             name="list_labels",
             description=(
                 "List all labels in the circle. "
@@ -625,6 +659,70 @@ async def list_tools() -> list[Tool]:
                 "properties": {},
             },
         ),
+        Tool(
+            name="get_chore_history",
+            description=(
+                "Get completion history for a specific chore. "
+                "Returns all completion records including when the chore was completed, "
+                "by whom, completion notes, and points awarded. "
+                "Useful for tracking chore completion patterns and accountability."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore to fetch history for",
+                    },
+                },
+                "required": ["chore_id"],
+            },
+        ),
+        Tool(
+            name="get_all_chores_history",
+            description=(
+                "Get completion history for all chores with pagination support. "
+                "Returns completion records across all chores in the circle, "
+                "showing who completed what and when. "
+                "Use limit and offset for pagination through large result sets."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of history entries to return (default: 50, max: 200)",
+                        "minimum": 1,
+                        "maximum": 200,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of entries to skip for pagination (default: 0)",
+                        "minimum": 0,
+                    },
+                },
+            },
+        ),
+        Tool(
+            name="get_chore_details",
+            description=(
+                "Get detailed chore information including completion statistics and analytics. "
+                "Returns extended details not available in standard get_chore: "
+                "total completion count, last completion date and user, average duration, "
+                "and recent completion history. "
+                "Useful for performance analysis and chore optimization."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chore_id": {
+                        "type": "integer",
+                        "description": "The ID of the chore to fetch detailed statistics for",
+                    },
+                },
+                "required": ["chore_id"],
+            },
+        ),
     ]
 
 
@@ -637,6 +735,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         if name == "list_chores":
             filter_active = arguments.get("filter_active")
             assigned_to_user_id = arguments.get("assigned_to_user_id")
+            detail_level = arguments.get("detail_level", "full")
 
             chores = await client.list_chores(
                 filter_active=filter_active,
@@ -647,10 +746,28 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             if not chores:
                 return [TextContent(type="text", text="No chores found.")]
 
-            result = {
-                "count": len(chores),
-                "chores": [chore.model_dump() for chore in chores],
-            }
+            # Apply detail level filter
+            if detail_level == "brief":
+                # Brief format: only essential fields
+                brief_chores = []
+                for chore in chores:
+                    brief_chores.append({
+                        "id": chore.id,
+                        "name": chore.name,
+                        "isActive": chore.isActive,
+                        "assignedTo": chore.assignedTo,
+                        "nextDueDate": chore.nextDueDate,
+                    })
+                result = {
+                    "count": len(brief_chores),
+                    "chores": brief_chores,
+                }
+            else:
+                # Full format: all fields
+                result = {
+                    "count": len(chores),
+                    "chores": [chore.model_dump() for chore in chores],
+                }
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -943,6 +1060,33 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 )
             ]
 
+        elif name == "update_subtask_completion":
+            chore_id = arguments["chore_id"]
+            subtask_id = arguments["subtask_id"]
+            completed = arguments["completed"]
+
+            chore = await client.update_subtask_completion(chore_id, subtask_id, completed)
+
+            # Calculate subtask progress
+            total_subtasks = len(chore.subTasks)
+            completed_subtasks = sum(1 for st in chore.subTasks if st.get('completedAt'))
+            progress_pct = (completed_subtasks / total_subtasks * 100) if total_subtasks > 0 else 0
+
+            # Format subtask list
+            subtasks_text = "\n".join([
+                f"  {'✅' if st.get('completedAt') else '⬜'} {st.get('name', 'Unnamed')} (ID: {st.get('id')})"
+                for st in chore.subTasks
+            ])
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"✅ Successfully updated subtask {subtask_id} on chore '{chore.name}' (ID: {chore.id})\n\n"
+                    f"📊 Progress: {completed_subtasks}/{total_subtasks} subtasks complete ({progress_pct:.0f}%)\n\n"
+                    f"Subtasks:\n{subtasks_text}",
+                )
+            ]
+
         elif name == "list_labels":
             labels = await client.get_labels()
 
@@ -1104,6 +1248,148 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=profile_info,
+                )
+            ]
+
+        elif name == "get_chore_history":
+            chore_id = arguments["chore_id"]
+            history = await client.get_chore_history(chore_id)
+
+            if not history:
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"No completion history found for chore {chore_id}",
+                    )
+                ]
+
+            # Format history entries with emojis and clear structure
+            entries = []
+            for entry in history:
+                status_emoji = "✅" if entry.completedAt else "⏳"
+                completed_by = entry.completedBy or "Unknown"
+                completed_at = entry.completedAt or "Unknown"
+                notes = entry.note or "No notes"
+
+                entry_text = (
+                    f"{status_emoji} Completion ID: {entry.id}\n"
+                    f"  👤 Completed by: {completed_by}\n"
+                    f"  📅 Completed at: {completed_at}\n"
+                    f"  📝 Notes: {notes}"
+                )
+                entries.append(entry_text)
+
+            history_text = (
+                f"📊 Completion History for Chore {chore_id}\n"
+                f"Total completions: {len(history)}\n\n"
+                + "\n\n".join(entries)
+            )
+
+            return [
+                TextContent(
+                    type="text",
+                    text=history_text,
+                )
+            ]
+
+        elif name == "get_all_chores_history":
+            limit = arguments.get("limit", 50)
+            offset = arguments.get("offset", 0)
+
+            history = await client.get_all_chores_history(limit=limit, offset=offset)
+
+            if not history:
+                return [
+                    TextContent(
+                        type="text",
+                        text="No completion history found",
+                    )
+                ]
+
+            # Group entries by chore for better readability
+            by_chore: dict[int, list] = {}
+            for entry in history:
+                chore_id = entry.choreId
+                if chore_id not in by_chore:
+                    by_chore[chore_id] = []
+                by_chore[chore_id].append(entry)
+
+            # Format grouped history
+            chore_sections = []
+            for chore_id, entries in by_chore.items():
+                chore_name = entries[0].choreName if entries else "Unknown"
+                entry_lines = []
+
+                for entry in entries:
+                    status_emoji = "✅"
+                    completed_by = entry.completedBy or "Unknown"
+                    completed_at = entry.completedAt or "Unknown"
+
+                    entry_lines.append(
+                        f"  {status_emoji} {completed_at} by {completed_by}"
+                    )
+
+                section = (
+                    f"🏷️  {chore_name} (Chore ID: {chore_id})\n"
+                    + "\n".join(entry_lines)
+                )
+                chore_sections.append(section)
+
+            pagination_hint = ""
+            if len(history) == limit:
+                pagination_hint = f"\n\n💡 Showing {limit} entries (offset: {offset}). Use offset={offset + limit} to see more."
+
+            history_text = (
+                f"📊 Chore Completion History\n"
+                f"Showing {len(history)} entries\n\n"
+                + "\n\n".join(chore_sections)
+                + pagination_hint
+            )
+
+            return [
+                TextContent(
+                    type="text",
+                    text=history_text,
+                )
+            ]
+
+        elif name == "get_chore_details":
+            chore_id = arguments["chore_id"]
+            details = await client.get_chore_details(chore_id)
+
+            # Format detailed statistics
+            total_count = details.totalCompletedCount or 0
+            last_completed = details.lastCompletedDate or "Never"
+            last_user = details.lastCompletedBy or "N/A"
+            avg_duration = details.avgDuration or "N/A"
+
+            # Format recent history
+            recent_history = []
+            if details.history:
+                for entry in details.history[:5]:  # Show last 5
+                    completed_at = entry.completedAt or "Unknown"
+                    completed_by = entry.completedBy or "Unknown"
+                    recent_history.append(f"  ✅ {completed_at} by {completed_by}")
+
+            history_text = "\n".join(recent_history) if recent_history else "  No completions yet"
+
+            details_text = (
+                f"📊 Chore Details: {details.name}\n"
+                f"ID: {details.id}\n\n"
+                f"📈 Statistics:\n"
+                f"  Total Completions: {total_count}\n"
+                f"  Average Duration: {avg_duration}\n\n"
+                f"🕐 Last Completion:\n"
+                f"  Date: {last_completed}\n"
+                f"  By: {last_user}\n\n"
+                f"📜 Recent History (last 5):\n"
+                f"{history_text}"
+            )
+
+            return [
+                TextContent(
+                    type="text",
+                    text=details_text,
                 )
             ]
 

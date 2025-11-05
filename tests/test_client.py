@@ -287,6 +287,44 @@ class TestDonetickClient:
         assert chore.nextDueDate == "2025-11-17"
 
     @pytest.mark.asyncio
+    async def test_update_subtask_completion(self, client, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test updating subtask completion status."""
+        # Mock getting the chore with subtasks
+        chore_with_subtasks = {
+            **sample_chore_data,
+            "subTasks": [
+                {"id": 1, "name": "Task 1", "orderId": 0, "completedAt": None, "completedBy": 0},
+                {"id": 2, "name": "Task 2", "orderId": 1, "completedAt": None, "completedBy": 0},
+            ]
+        }
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/1",
+            json=chore_with_subtasks,
+        )
+
+        # Mock the update response with completed subtask
+        updated_chore = {
+            **sample_chore_data,
+            "subTasks": [
+                {"id": 1, "name": "Task 1", "orderId": 0, "completedAt": "2025-11-05T12:00:00Z", "completedBy": 0},
+                {"id": 2, "name": "Task 2", "orderId": 1, "completedAt": None, "completedBy": 0},
+            ]
+        }
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/",
+            json=updated_chore,
+            method="PUT",
+        )
+
+        async with client:
+            chore = await client.update_subtask_completion(1, 1, True)
+
+        assert chore.id == 1
+        assert len(chore.subTasks) == 2
+        assert chore.subTasks[0]["completedAt"] is not None
+        assert chore.subTasks[1]["completedAt"] is None
+
+    @pytest.mark.asyncio
     async def test_rate_limit_429_retry(self, client, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
         """Test retry logic on 429 rate limit."""
         # First request returns 429
@@ -1064,3 +1102,145 @@ class TestDonetickClient:
             )
             chore2 = await client.get_chore(1)
             assert chore2 is not None
+
+    @pytest.mark.asyncio
+    async def test_get_chore_history(self, httpx_mock: HTTPXMock, mock_login):
+        """Test getting chore history."""
+        history_data = [
+            {
+                "id": 1,
+                "choreId": 123,
+                
+                "performedAt": "2025-11-05T10:00:00Z",
+                "completedBy": 1,
+                "note": "Completed successfully",
+                "assignedTo": 1,
+                "dueDate": "2025-11-05T00:00:00Z",
+            },
+            {
+                "id": 2,
+                "choreId": 123,
+                
+                "performedAt": "2025-11-04T10:00:00Z",
+                "completedBy": 1,
+                "note": None,
+                "assignedTo": 1,
+                "dueDate": "2025-11-04T00:00:00Z",
+            },
+        ]
+
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/123/history",
+            json={"res": history_data},
+        )
+
+        client = DonetickClient(
+            base_url="https://test.donetick.com",
+            username="test",
+            password="test",
+        )
+
+        async with client:
+            history = await client.get_chore_history(123)
+
+            assert len(history) == 2
+            assert history[0].id == 1
+            assert history[0].choreId == 123
+            assert history[0].completedBy == "TestUser"
+            assert history[0].note == "Completed successfully"
+            assert history[1].id == 2
+            assert history[1].note is None
+
+    @pytest.mark.asyncio
+    async def test_get_all_chores_history(self, httpx_mock: HTTPXMock, mock_login):
+        """Test getting all chores history with pagination."""
+        history_data = [
+            {
+                "id": 1,
+                "choreId": 123,
+                "choreName": "Test Chore 1",
+                "performedAt": "2025-11-05T10:00:00Z",
+                "completedBy": 1,
+                "note": None,
+                "assignedTo": 1,
+                "dueDate": "2025-11-05T00:00:00Z",
+            },
+            {
+                "id": 2,
+                "choreId": 124,
+                "choreName": "Test Chore 2",
+                "performedAt": "2025-11-04T10:00:00Z",
+                "completedBy": 2,
+                "note": None,
+                "assignedTo": 2,
+                "dueDate": "2025-11-04T00:00:00Z",
+            },
+        ]
+
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/history?limit=10&offset=5",
+            json={"res": history_data},
+        )
+
+        client = DonetickClient(
+            base_url="https://test.donetick.com",
+            username="test",
+            password="test",
+        )
+
+        async with client:
+            history = await client.get_all_chores_history(limit=10, offset=5)
+
+            assert len(history) == 2
+            assert history[0].choreId == 123
+            assert history[0].choreName == "Test Chore 1"
+            assert history[1].choreId == 124
+            assert history[1].choreName == "Test Chore 2"
+
+    @pytest.mark.asyncio
+    async def test_get_chore_details(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test getting chore details with statistics."""
+        history_entry = {
+            "id": 1,
+            "choreId": 123,
+            
+            "performedAt": "2025-11-05T10:00:00Z",
+            "completedBy": 1,
+            "note": None,
+            "assignedTo": 1,
+            "dueDate": "2025-11-05T00:00:00Z",
+        }
+
+        details_data = {
+            **sample_chore_data,
+            "id": 123,
+            "name": "Detailed Test Chore",
+            "totalCompletedCount": 5,
+            "lastCompletedDate": "2025-11-05T10:00:00Z",
+            "lastCompletedBy": 1,
+            "avgDuration": "2h 30m",
+            "history": [history_entry],
+        }
+
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/123/details",
+            json={"res": details_data},
+        )
+
+        client = DonetickClient(
+            base_url="https://test.donetick.com",
+            username="test",
+            password="test",
+        )
+
+        async with client:
+            details = await client.get_chore_details(123)
+
+            assert details.id == 123
+            assert details.name == "Detailed Test Chore"
+            assert details.totalCompletedCount == 5
+            assert details.lastCompletedDate == "2025-11-05T10:00:00Z"
+            assert details.lastCompletedBy == "TestUser"
+            assert details.avgDuration == "2h 30m"
+            assert len(details.history) == 1
+            assert details.history[0].completedBy == "TestUser"

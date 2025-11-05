@@ -140,9 +140,9 @@ The codebase follows a clean separation of concerns:
 - **Purpose**: Exposes Donetick functionality as MCP tools
 - **Transport**: stdio (for Claude Desktop integration)
 - **Global State**: Maintains a single `DonetickClient` instance
-- **Tools Exposed (16 tools)**:
-  - **Chore Management (8 tools)**:
-    - `list_chores`: List with filters (active status, assigned user)
+- **Tools Exposed (20 tools)**:
+  - **Chore Management (10 tools)**:
+    - `list_chores`: List with filters (active status, assigned user), supports `detail_level` for brief/full responses
     - `get_chore`: Get by ID (uses direct GET endpoint, includes sub-tasks)
     - `create_chore`: Create new chore (supports sub-tasks)
     - `complete_chore`: Mark complete (Premium feature)
@@ -151,6 +151,7 @@ The codebase follows a clean separation of concerns:
     - `update_chore_assignee`: Reassign chore to different user
     - `delete_chore`: Delete chore (creator only)
     - `skip_chore`: Skip chore without marking complete (reschedule next occurrence)
+    - `update_subtask_completion`: Mark individual subtasks complete/incomplete with progress tracking
   - **Label Management (4 tools)**:
     - `list_labels`: List all labels in the circle
     - `create_label`: Create new custom label
@@ -160,6 +161,10 @@ The codebase follows a clean separation of concerns:
     - `get_circle_members`: Get circle members with roles and points
     - `list_circle_users`: List all users in the circle
     - `get_user_profile`: Get current user's detailed profile
+  - **History/Analytics (3 tools)**:
+    - `get_chore_history`: Get completion history for a specific chore
+    - `get_all_chores_history`: Get completion history across all chores (with pagination)
+    - `get_chore_details`: Get detailed statistics and analytics for a chore
 
 **Important**: The server uses a global client instance for connection pooling. Call `cleanup()` on shutdown to properly close resources.
 
@@ -225,7 +230,7 @@ Uses the Full API (not external API/eAPI):
 - **List Chores**: `GET /api/v1/chores/` (does NOT include sub-tasks)
 - **Get Chore**: `GET /api/v1/chores/{id}` (includes sub-tasks via Preload)
 - **Create Chore**: `POST /api/v1/chores/` (supports sub-tasks)
-- **Update Chore**: `PUT /api/v1/chores/{id}` (basic fields: name, description, nextDueDate)
+- **Update Chore**: `PUT /api/v1/chores/` (IMPORTANT: ID in body, not URL! Returns message-only response)
 - **Update Priority**: `PUT /api/v1/chores/{id}/priority` (change priority level)
 - **Update Assignee**: `PUT /api/v1/chores/{id}/assignee` (reassign to different user)
 - **Skip Chore**: `PUT /api/v1/chores/{id}/skip` (skip recurring without marking complete)
@@ -234,6 +239,19 @@ Uses the Full API (not external API/eAPI):
 - **Get Members**: `GET /api/v1/circles/members/` (get circle members with roles)
 
 **Critical**: Note the trailing slashes in list endpoints (`/api/v1/chores/`, `/api/v1/circles/members/`) and `/v1/` prefix - required for proper routing!
+
+**Update Chore Implementation Details**:
+The `update_chore` endpoint (`PUT /api/v1/chores/`) uses a non-RESTful pattern:
+1. Chore ID is in the **request body**, not the URL path
+2. Requires the **full chore object**, not just updated fields
+3. Returns `{"message": "Chore added successfully"}` instead of the updated chore
+4. Implementation uses fetch-modify-send pattern:
+   - Fetch current chore with `GET /api/v1/chores/{id}`
+   - Apply updates to the full chore object
+   - Remove problematic metadata fields (createdAt, updatedAt, assignees, etc.)
+   - Send complete object to `PUT /api/v1/chores/`
+   - Fetch updated chore to return to caller
+5. **Sub-tasks are preserved**: New sub-tasks use negative IDs (-1, -2, etc.) which the API converts to positive IDs
 
 ### 3. Field Name Consistency
 All operations use camelCase consistently:
@@ -428,6 +446,26 @@ Or for Python direct:
 - `tests/integration/test_live_api.py` - Live API integration tests
 
 ## Recent Enhancements
+
+### v0.3.4 - Critical Update Chore Bug Fix
+
+**Bug Fix (2025-11-04)**:
+- **Fixed update_chore HTML response error**: The `update_chore` method was using the wrong API endpoint pattern, causing it to return HTML instead of JSON
+- **Root cause**: Was using `PUT /api/v1/chores/{id}` which doesn't exist. The correct endpoint is `PUT /api/v1/chores/` with the ID in the request body
+- **Implementation changes**:
+  - Changed to fetch-modify-send pattern: fetch current chore, apply updates, send full object
+  - Remove problematic metadata fields (createdAt, updatedAt, assignees, etc.) that cause validation errors
+  - Handle message-only API response: `{"message": "Chore added successfully"}`
+  - Fetch updated chore after API call to return to caller
+- **Sub-task preservation**: New sub-tasks with negative IDs (-1, -2, etc.) are correctly handled by the API
+- **Documentation**: Added comprehensive update_chore implementation details to CLAUDE.md
+- **Testing**: Verified with live API test against real Donetick instance
+
+**Technical Details**:
+- File: [src/donetick_mcp/client.py:395-459](src/donetick_mcp/client.py#L395-L459)
+- The Donetick API uses a non-RESTful pattern for updates: ID in body, not URL
+- Full chore object required, not just updated fields
+- API returns message confirmation instead of updated object
 
 ### v0.4.0 - Phase 1 Foundation Complete
 
