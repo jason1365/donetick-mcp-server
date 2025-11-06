@@ -438,6 +438,34 @@ class DonetickClient:
                 assignees.append(assigned_to)
                 chore_dict["assignees"] = assignees
 
+        # Validate and fix frequencyMetadata if present
+        if "frequencyMetadata" in chore_dict and chore_dict["frequencyMetadata"]:
+            freq_meta = chore_dict["frequencyMetadata"]
+            logger.info(f"Validating frequencyMetadata: {freq_meta}")
+
+            # API expects specific fields for days_of_the_week frequency
+            # Based on v0.3.7 fix: days, weekPattern, occurrences, weekNumbers
+            if isinstance(freq_meta, dict):
+                # Add required empty arrays if missing
+                if "occurrences" not in freq_meta:
+                    freq_meta["occurrences"] = []
+                if "weekNumbers" not in freq_meta:
+                    freq_meta["weekNumbers"] = []
+
+                # Remove fields that API doesn't recognize
+                # time, unit, timezone should be handled separately via notificationMetadata
+                extra_fields = {"time", "unit", "timezone"}
+                for field in extra_fields:
+                    if field in freq_meta:
+                        logger.info(f"Removing unrecognized field from frequencyMetadata: {field}")
+                        freq_meta.pop(field)
+
+                chore_dict["frequencyMetadata"] = freq_meta
+                logger.info(f"Fixed frequencyMetadata: {freq_meta}")
+
+        # Log the final payload for debugging
+        logger.debug(f"Sending update payload: {json_lib.dumps(chore_dict, indent=2)}")
+
         data = await self._request(
             "PUT",
             "/api/v1/chores/",
