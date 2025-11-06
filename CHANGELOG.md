@@ -5,6 +5,21 @@ All notable changes to the Donetick MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.10] - 2025-11-06
+
+### Fixed
+- **Critical: `create_chore` days_of_week parameter bug**: Fixed order of operations where `frequency_type` was auto-set AFTER calling `transform_frequency_metadata()`
+  - Now auto-sets `frequency_type="days_of_the_week"` BEFORE transformation (server.py:850-852)
+  - Ensures the `days` array is properly populated in `frequencyMetadata` during chore creation
+  - Resolves issue where created chores only had `time` field in frequencyMetadata, missing the `days` array entirely
+  - Previously: `transform_frequency_metadata()` received `frequency_type="once"`, so condition `if frequency_type in ("days_of_the_week", "weekly")` failed
+  - Root cause: Auto-setting logic was at line 875 (after transform), moved to line 850 (before transform)
+
+### Technical Details
+- Removed duplicate auto-set logic that was occurring after transformation (too late to be effective)
+- All 107 tests passing with fix in place
+- Prevents database corruption from malformed frequencyMetadata during chore creation
+
 ## [0.3.9] - 2025-11-06
 
 ### Fixed

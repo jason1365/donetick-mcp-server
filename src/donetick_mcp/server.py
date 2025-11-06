@@ -847,6 +847,10 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             time_of_day = arguments.get("time_of_day")
             timezone = arguments.get("timezone", "America/New_York")
 
+            # Auto-set frequency type if days are specified (MUST happen before transform!)
+            if days_of_week and frequency_type == "once":
+                frequency_type = "days_of_the_week"
+
             # Validate days_of_week is provided for days_of_the_week frequency type
             if frequency_type == "days_of_the_week" and not days_of_week:
                 return [
@@ -871,9 +875,6 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     time=time_of_day,
                     timezone=timezone
                 )
-                # Auto-set frequency type if days are specified
-                if days_of_week and frequency_type == "once":
-                    frequency_type = "days_of_the_week"
 
             # ===== Handle Notification Metadata =====
             notification_metadata = arguments.get("notification_metadata", {})
