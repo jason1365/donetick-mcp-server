@@ -929,6 +929,32 @@ class TestMCPServer:
         assert "YYYY-MM-DD" in result[0].text or "RFC3339" in result[0].text or "date" in result[0].text.lower()
 
     @pytest.mark.asyncio
+    async def test_http_400_with_api_error_message(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test that 400 errors show the actual API error message."""
+        # Mock GET for fetch-modify-send pattern
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1",
+            json={"res": sample_chore_data},
+            method="GET",
+        )
+        # Mock PUT with specific API error
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/",
+            status_code=400,
+            json={"error": "Assigned to not found in assignees"},
+            method="PUT",
+        )
+
+        result = await call_tool("update_chore", {"chore_id": 1, "name": "Updated"})
+
+        assert len(result) == 1
+        # Should show the actual API error message prominently
+        assert "API Error: Assigned to not found in assignees" in result[0].text
+        # Should still include helpful hints
+        assert "💡 Hint" in result[0].text
+        assert "list_circle_users" in result[0].text
+
+    @pytest.mark.asyncio
     async def test_http_429_rate_limit(self, httpx_mock: HTTPXMock, mock_login):
         """Test handling of 429 rate limit errors."""
         # Mock retries (client retries 429 with backoff)
@@ -1015,7 +1041,8 @@ class TestMCPServer:
         assert "📊" in result[0].text
         assert "Completion History for Chore 123" in result[0].text
         assert "Total completions: 2" in result[0].text
-        assert "TestUser" in result[0].text
+        # completedBy is user ID (integer), displayed as "user 1"
+        assert "user 1" in result[0].text
         assert "Completed successfully" in result[0].text
         assert "2025-11-05T10:00:00Z" in result[0].text
 

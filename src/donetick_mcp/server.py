@@ -1266,9 +1266,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             # Format history entries with emojis and clear structure
             entries = []
             for entry in history:
-                status_emoji = "✅" if entry.completedAt else "⏳"
-                completed_by = entry.completedBy or "Unknown"
-                completed_at = entry.completedAt or "Unknown"
+                status_emoji = "✅" if entry.performedAt else "⏳"
+                # completedBy is user ID (integer), not username
+                completed_by = f"user {entry.completedBy}" if entry.completedBy else "Unknown"
+                # Field is performedAt, not completedAt
+                completed_at = entry.performedAt or "Unknown"
                 notes = entry.note or "No notes"
 
                 entry_text = (
@@ -1413,6 +1415,18 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         # Log full error internally
         logger.error(f"HTTP error executing tool {name}: {e.response.status_code} - {e.response.text}", exc_info=True)
 
+        # Try to extract actual error message from API response
+        api_error = None
+        try:
+            error_data = e.response.json()
+            api_error = error_data.get("error") or error_data.get("message")
+        except:
+            # If JSON parsing fails, try to get text
+            try:
+                api_error = e.response.text[:200] if e.response.text else None
+            except:
+                pass
+
         # Return helpful error messages with hints
         status_code = e.response.status_code
         if status_code == 401:
@@ -1447,8 +1461,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             else:
                 error_msg = "Resource not found."
         elif status_code == 422:
+            base_msg = "Validation error. The API rejected the request parameters."
+            if api_error:
+                base_msg = f"Validation error: {api_error}"
             error_msg = (
-                "Validation error. The API rejected the request parameters.\n\n"
+                f"{base_msg}\n\n"
                 "💡 Hint: Common issues:\n"
                 "   - Invalid date format (use YYYY-MM-DD or RFC3339)\n"
                 "   - Invalid frequency_type (use: once, daily, weekly, days_of_the_week, etc.)\n"
@@ -1462,19 +1479,38 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 "   typically 10 requests per second."
             )
         elif 400 <= status_code < 500:
-            error_msg = (
-                f"Request failed with status {status_code}. Please check your input.\n\n"
-                "💡 Hint: Review the tool's input parameters and ensure:\n"
-                "   - Required fields are provided\n"
-                "   - Data types match expectations (IDs are integers, names are strings)\n"
-                "   - Values are in correct format (dates, colors, etc.)"
-            )
+            # For 400-level errors, show the actual API error prominently
+            if api_error:
+                error_msg = (
+                    f"API Error: {api_error}\n\n"
+                    "💡 Hint: Review the error message above and check:\n"
+                    "   - Required fields are provided\n"
+                    "   - Data types match expectations (IDs are integers, names are strings)\n"
+                    "   - Values are in correct format (dates, colors, etc.)\n"
+                    "   - User IDs exist in your circle (use list_circle_users to check)"
+                )
+            else:
+                error_msg = (
+                    f"Request failed with status {status_code}. Please check your input.\n\n"
+                    "💡 Hint: Review the tool's input parameters and ensure:\n"
+                    "   - Required fields are provided\n"
+                    "   - Data types match expectations (IDs are integers, names are strings)\n"
+                    "   - Values are in correct format (dates, colors, etc.)"
+                )
         else:
-            error_msg = (
-                f"API request failed with status {status_code}.\n\n"
-                "💡 Hint: This is likely a server-side issue. Try again in a moment.\n"
-                "   If the problem persists, check the Donetick server status."
-            )
+            # For 5xx errors, include API error if available
+            if api_error:
+                error_msg = (
+                    f"Server error ({status_code}): {api_error}\n\n"
+                    "💡 Hint: This is a server-side issue. Try again in a moment.\n"
+                    "   If the problem persists, check the Donetick server status."
+                )
+            else:
+                error_msg = (
+                    f"API request failed with status {status_code}.\n\n"
+                    "💡 Hint: This is likely a server-side issue. Try again in a moment.\n"
+                    "   If the problem persists, check the Donetick server status."
+                )
 
         return [TextContent(type="text", text=f"Error: {error_msg}")]
 
