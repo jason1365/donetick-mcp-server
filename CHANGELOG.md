@@ -5,6 +5,35 @@ All notable changes to the Donetick MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Error Message Transparency**: MCP server now extracts and displays actual API error messages from response JSON
+  - 400-level errors show "API Error: {message}" prominently, allowing Claude Desktop to understand and self-diagnose issues
+  - 422 validation errors include actual validation message from API
+  - 5xx server errors include server error message when available
+  - Helpful hints maintained alongside actual error messages
+- **Field Name Bug in `get_chore_history_tool`**: Fixed incorrect field names
+  - Changed `entry.completedAt` to `entry.performedAt` (correct field name)
+  - Changed completedBy display from raw integer to "user {id}" format
+  - Aligns with fixes previously made to `get_all_chores_history_tool`
+- **API Constraint Enforcement**: `update_chore()` now automatically ensures `assignedTo` is in `assignees` array
+  - Prevents "Assigned to not found in assignees" API errors
+  - Adds `assignedTo` to `assignees` array if missing during update operations
+- **Test Alignment**: Fixed 4 pre-existing test failures by aligning expectations with actual API data types
+  - `test_get_chore_history`: Fixed completedBy expectation (integer user ID, not username)
+  - `test_get_all_chores_history`: Removed non-existent choreName field assertions
+  - `test_get_chore_details`: Fixed field names (averageDuration, completionHistory, performedAt) and data types
+  - `test_update_chore_assignee_tool`: Added missing GET mocks for fetch-modify-send pattern
+
+### Changed
+- `mock_login` fixture now uses `is_optional=True` to allow tests that don't trigger authentication
+- Server code in `get_all_chores_history_tool` and `get_chore_details_tool` now uses correct field names from Pydantic models
+
+### Added
+- New test `test_http_400_with_api_error_message` to verify error transparency
+- Comprehensive documentation in CLAUDE.md explaining assignee constraint and workflow
+
 ## [0.3.7] - 2025-11-06
 
 ### Fixed
