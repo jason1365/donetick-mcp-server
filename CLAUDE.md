@@ -253,7 +253,57 @@ The `update_chore` endpoint (`PUT /api/v1/chores/`) uses a non-RESTful pattern:
    - Fetch updated chore to return to caller
 5. **Sub-tasks are preserved**: New sub-tasks use negative IDs (-1, -2, etc.) which the API converts to positive IDs
 
-### 3. Field Name Consistency
+### 3. Assignee Constraint and Workflow
+
+**IMPORTANT API CONSTRAINT**: If a chore has `assignedTo` set (not null), that user ID **MUST** be present in the `assignees` array. The API validates this and returns `400 Bad Request` with error `"Assigned to not found in assignees"` if violated.
+
+**Why This Matters**:
+- When updating chores, you might encounter chores with inconsistent assignee data
+- The MCP server automatically fixes this by adding `assignedTo` to `assignees` if missing
+- This prevents the `400 Bad Request` error during updates
+
+**Getting Valid User IDs**:
+Before assigning chores, you need to know which user IDs are valid for your circle. Use these tools:
+
+1. **list_circle_users** - Get all users in the circle with their IDs
+   ```python
+   users = await client.list_circle_users()
+   # Returns list of User objects with id, username, displayName
+   ```
+
+2. **get_circle_members** - Get detailed member information with roles and points
+   ```python
+   members = await client.get_circle_members()
+   # Returns list of CircleMember objects with user info, role, points
+   ```
+
+**Assignment Workflow**:
+```python
+# 1. Get available users
+users = await client.list_circle_users()
+tyler_id = next(u.id for u in users if u.username == "tyler")
+
+# 2. Create chore with assignment
+chore = await client.create_chore(ChoreCreate(
+    name="Homework",
+    assignedTo=tyler_id,  # Single user assigned
+    assignees=[tyler_id], # Must include assignedTo!
+))
+
+# 3. Update assignment
+# The client automatically ensures assignedTo is in assignees
+update = ChoreUpdate(assignedTo=tyler_id)
+chore = await client.update_chore(chore.id, update)
+```
+
+**Common Errors**:
+- `"Assigned to not found in assignees"` - assignedTo is set but not in assignees array
+  - **Fix**: The MCP client handles this automatically for update_chore
+  - **When creating**: Always include assignedTo in the assignees list
+- `"User not found"` - Invalid user ID that doesn't exist in the circle
+  - **Fix**: Use list_circle_users to get valid IDs
+
+### 4. Field Name Consistency
 All operations use camelCase consistently:
 - **Create**: camelCase (`name`, `description`, `dueDate`, `createdBy`)
 - **Update**: camelCase (`name`, `description`, `nextDueDate`)
@@ -261,12 +311,12 @@ All operations use camelCase consistently:
 
 **API Flexibility**: The Donetick API accepts both PascalCase and camelCase in requests, but we standardize on camelCase for consistency and maintainability.
 
-### 4. Date Format
+### 5. Date Format
 Accepts both formats:
 - ISO date: `2025-11-10`
 - RFC3339: `2025-11-10T00:00:00Z`
 
-### 5. All Features Supported
+### 6. All Features Supported
 The Full API (/api/v1/) supports all Donetick features:
 - Frequency metadata (specific days/times)
 - Rolling schedules

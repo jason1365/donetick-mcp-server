@@ -229,6 +229,83 @@ class TestDonetickClient:
         assert chore.name == "Test Chore"
 
     @pytest.mark.asyncio
+    async def test_update_chore_basic(self, client, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test updating basic chore fields (name, description, due date)."""
+        # Mock GET to fetch current chore
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/1",
+            json={"res": sample_chore_data},
+            method="GET",
+        )
+        # Mock PUT to update chore
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/",
+            json={"message": "Chore added successfully"},
+            method="PUT",
+        )
+        # Mock GET to fetch updated chore
+        updated_chore = {**sample_chore_data, "name": "Updated Name", "description": "Updated description"}
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/1",
+            json={"res": updated_chore},
+            method="GET",
+        )
+
+        async with client:
+            from donetick_mcp.models import ChoreUpdate
+            update = ChoreUpdate(name="Updated Name", description="Updated description")
+            chore = await client.update_chore(1, update)
+
+        assert chore.id == 1
+        assert chore.name == "Updated Name"
+        assert chore.description == "Updated description"
+
+    @pytest.mark.asyncio
+    async def test_update_chore_assignee_constraint(self, client, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
+        """Test that update_chore enforces assignedTo must be in assignees array."""
+        # Mock GET to fetch chore with assignedTo but empty assignees (data inconsistency)
+        inconsistent_chore = {
+            **sample_chore_data,
+            "assignedTo": 5,  # User 5 assigned
+            "assignees": [],  # But not in assignees array!
+        }
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/1",
+            json={"res": inconsistent_chore},
+            method="GET",
+        )
+
+        # Mock PUT - should receive payload with assignedTo in assignees
+        def check_assignee_constraint(request):
+            import json
+            import httpx as httpx_lib
+            payload = request.read().decode()
+            data = json.loads(payload)
+            # Verify the constraint is satisfied
+            assert data["assignedTo"] == 5
+            assert 5 in data["assignees"], "assignedTo must be in assignees array"
+            return httpx_lib.Response(200, json={"message": "Chore added successfully"})
+
+        httpx_mock.add_callback(check_assignee_constraint, url="https://test.donetick.com/api/v1/chores/", method="PUT")
+
+        # Mock GET to return updated chore
+        fixed_chore = {**inconsistent_chore, "assignees": [{"userId": 5}]}
+        httpx_mock.add_response(
+            url="https://test.donetick.com/api/v1/chores/1",
+            json={"res": fixed_chore},
+            method="GET",
+        )
+
+        async with client:
+            from donetick_mcp.models import ChoreUpdate
+            update = ChoreUpdate(name="Updated Name")
+            chore = await client.update_chore(1, update)
+
+        assert chore.id == 1
+        assert chore.assignedTo == 5
+        # The fix should have added assignedTo to assignees
+
+    @pytest.mark.asyncio
     async def test_update_chore_priority(self, client, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
         """Test updating chore priority."""
         updated_chore = {**sample_chore_data, "priority": 4}

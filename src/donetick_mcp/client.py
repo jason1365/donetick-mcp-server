@@ -421,6 +421,23 @@ class DonetickClient:
                 if "created_by" in label and label["created_by"] is None:
                     label.pop("created_by")
 
+        # IMPORTANT API CONSTRAINT: If assignedTo is set, it MUST be in the assignees array
+        # The API validates this and returns 400 "Assigned to not found in assignees" if violated
+        assigned_to = chore_dict.get("assignedTo")
+        assignees = chore_dict.get("assignees", [])
+
+        if assigned_to is not None:
+            # Ensure assignees is a list
+            if not isinstance(assignees, list):
+                assignees = []
+                chore_dict["assignees"] = assignees
+
+            # Add assignedTo to assignees if not present
+            if assigned_to not in assignees:
+                logger.info(f"Adding assignedTo ({assigned_to}) to assignees array to satisfy API constraint")
+                assignees.append(assigned_to)
+                chore_dict["assignees"] = assignees
+
         data = await self._request(
             "PUT",
             "/api/v1/chores/",
