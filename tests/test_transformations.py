@@ -36,11 +36,14 @@ class TestFrequencyTransformation:
         assert "days" in result
         assert len(result["days"]) == 7
         assert result["days"] == ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        assert result["unit"] == "days"
         assert result["weekPattern"] == "every_week"
-        assert result["timezone"] == "America/New_York"
+        assert result["occurrences"] == []
+        assert result["weekNumbers"] == []
         assert "time" in result
         assert "T" in result["time"]  # Should be ISO format
+        # unit and timezone are NOT included (v0.3.7 fix - API doesn't accept them)
+        assert "unit" not in result
+        assert "timezone" not in result
 
     def test_transform_frequency_metadata_invalid_day_raises_error(self, client):
         """Test that invalid day names raise ValueError."""
@@ -81,7 +84,7 @@ class TestFrequencyTransformation:
         assert "days_of_week parameter is required" in error_message
 
     def test_transform_frequency_metadata_timezone_handling(self, client):
-        """Test that timezone is properly included in metadata."""
+        """Test that timezone is used for time conversion but not included in output."""
         result = client.transform_frequency_metadata(
             frequency_type="days_of_the_week",
             days_of_week=["Wed"],
@@ -89,21 +92,28 @@ class TestFrequencyTransformation:
             timezone="Europe/London"
         )
 
-        assert result["timezone"] == "Europe/London"
+        # timezone is used internally for time conversion but not in output (v0.3.7 fix)
+        assert "timezone" not in result
         assert "time" in result
-        # Time should be in ISO format with timezone info
+        # Time should be in ISO format with timezone info embedded
         assert "T" in result["time"]
+        # Verify the time was converted using the timezone
+        assert result["time"].endswith(("+00:00", "+01:00", "Z"))  # London timezone offset
 
     def test_transform_frequency_metadata_unit_and_weekpattern(self, client):
-        """Test that unit='days' and weekPattern='every_week' are always added."""
+        """Test that weekPattern='every_week' and required arrays are added (v0.3.7 format)."""
         result = client.transform_frequency_metadata(
             frequency_type="days_of_the_week",
             days_of_week=["Fri"],
             timezone="America/Los_Angeles"
         )
 
-        assert result["unit"] == "days"
+        # unit is NOT included in output (v0.3.7 fix - API doesn't accept it)
+        assert "unit" not in result
         assert result["weekPattern"] == "every_week"
+        # v0.3.7 added these required empty arrays
+        assert result["occurrences"] == []
+        assert result["weekNumbers"] == []
 
     def test_transform_frequency_metadata_mixed_case_days(self, client):
         """Test that mixed case day names are normalized correctly."""

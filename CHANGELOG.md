@@ -5,6 +5,37 @@ All notable changes to the Donetick MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.11] - 2025-11-06
+
+### Fixed
+- **Critical: API response wrapping bug**: Fixed Pydantic validation errors in 3 chore operation methods
+  - `skip_chore`: Now properly unwraps `{"res": {...}}` responses from API (client.py:652-654)
+  - `complete_chore`: Now properly unwraps `{"res": {...}}` responses from API (client.py:539-541)
+  - `update_chore_priority`: Now properly unwraps `{"res": {...}}` responses from API (client.py:571-573)
+  - Resolves "8 validation errors for Chore: Field required" errors despite 200 OK responses
+  - Root cause: API returns chore data wrapped in `{"res": {...}}` but code was parsing entire response directly
+  - Pattern: Added `if isinstance(data, dict) and "res" in data: data = data["res"]` before Pydantic validation
+- **Critical: `update_chore` frequencyMetadata over-validation**: Fixed bug where frequency metadata validation was applied to ALL frequency types
+  - Now only validates `frequencyMetadata` for `days_of_the_week` frequency type (client.py:444-471)
+  - For other frequency types (`daily`, `weekly`, `monthly`, etc.), leaves metadata structure unchanged
+  - Previously: Removed valid `time` field from `daily` frequency and added unnecessary `occurrences`/`weekNumbers`
+  - Caused "400 Invalid request format" errors when updating chores with non-days_of_the_week frequencies
+  - Validation logic now checks `frequency_type` before applying days_of_the_week-specific transformations
+
+### Added
+- **Comprehensive notification documentation**: Added "Setting Notifications and Reminders" section to CLAUDE.md
+  - Simple approach using `remind_minutes_before` and `remind_at_due_time` parameters
+  - API format details for `notificationMetadata` structure (templates, units, nagging, predue)
+  - Advanced usage examples for custom notification schedules
+  - Common patterns for different task types (5 min for quick tasks, 1 day for important tasks, etc.)
+  - Examples for updating existing chores with notifications
+
+### Technical Details
+- All 136 unit tests passing with fixes in place
+- Response unwrapping pattern applied consistently: handle both direct and wrapped API responses
+- Prevents database corruption from malformed frequencyMetadata during chore updates
+- MCP clients now have clear guidance on configuring notifications via CLAUDE.md
+
 ## [0.3.10] - 2025-11-06
 
 ### Fixed

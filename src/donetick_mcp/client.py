@@ -438,30 +438,37 @@ class DonetickClient:
                 assignees.append(assigned_to)
                 chore_dict["assignees"] = assignees
 
-        # Validate and fix frequencyMetadata if present
+        # Validate and fix frequencyMetadata ONLY for days_of_the_week frequency type
+        # For other frequency types (daily, weekly, etc.), leave frequencyMetadata as-is
         if "frequencyMetadata" in chore_dict and chore_dict["frequencyMetadata"]:
+            freq_type = chore_dict.get("frequencyType", "")
             freq_meta = chore_dict["frequencyMetadata"]
-            logger.info(f"Validating frequencyMetadata: {freq_meta}")
 
-            # API expects specific fields for days_of_the_week frequency
-            # Based on v0.3.7 fix: days, weekPattern, occurrences, weekNumbers
-            if isinstance(freq_meta, dict):
-                # Add required empty arrays if missing
-                if "occurrences" not in freq_meta:
-                    freq_meta["occurrences"] = []
-                if "weekNumbers" not in freq_meta:
-                    freq_meta["weekNumbers"] = []
+            # Only validate for days_of_the_week - other types use different metadata structures
+            if freq_type == "days_of_the_week":
+                logger.info(f"Validating frequencyMetadata for days_of_the_week: {freq_meta}")
 
-                # Remove fields that API doesn't recognize
-                # time, unit, timezone should be handled separately via notificationMetadata
-                extra_fields = {"time", "unit", "timezone"}
-                for field in extra_fields:
-                    if field in freq_meta:
-                        logger.info(f"Removing unrecognized field from frequencyMetadata: {field}")
-                        freq_meta.pop(field)
+                # API expects specific fields for days_of_the_week frequency
+                # Based on v0.3.7 fix: days, weekPattern, occurrences, weekNumbers
+                if isinstance(freq_meta, dict):
+                    # Add required empty arrays if missing
+                    if "occurrences" not in freq_meta:
+                        freq_meta["occurrences"] = []
+                    if "weekNumbers" not in freq_meta:
+                        freq_meta["weekNumbers"] = []
 
-                chore_dict["frequencyMetadata"] = freq_meta
-                logger.info(f"Fixed frequencyMetadata: {freq_meta}")
+                    # Remove fields that API doesn't recognize for days_of_the_week
+                    # time, unit, timezone should be handled separately via notificationMetadata
+                    extra_fields = {"time", "unit", "timezone"}
+                    for field in extra_fields:
+                        if field in freq_meta:
+                            logger.info(f"Removing unrecognized field from frequencyMetadata: {field}")
+                            freq_meta.pop(field)
+
+                    chore_dict["frequencyMetadata"] = freq_meta
+                    logger.info(f"Fixed frequencyMetadata: {freq_meta}")
+            else:
+                logger.info(f"Skipping frequencyMetadata validation for frequency type: {freq_type}")
 
         # Log the final payload for debugging
         logger.debug(f"Sending update payload: {json_lib.dumps(chore_dict, indent=2)}")
@@ -529,6 +536,10 @@ class DonetickClient:
             params=params,
         )
 
+        # Handle both direct object and wrapped response
+        if isinstance(data, dict) and "res" in data:
+            data = data["res"]
+
         completed_chore = Chore(**data)
         logger.info(f"Completed chore {chore_id}: {completed_chore.name}")
         return completed_chore
@@ -556,6 +567,10 @@ class DonetickClient:
             f"/api/v1/chores/{chore_id}/priority",
             json={"priority": priority},
         )
+
+        # Handle both direct object and wrapped response
+        if isinstance(data, dict) and "res" in data:
+            data = data["res"]
 
         updated_chore = Chore(**data)
         logger.info(f"Updated chore {chore_id} priority: {priority}")
@@ -641,6 +656,10 @@ class DonetickClient:
             "POST",
             f"/api/v1/chores/{chore_id}/skip",
         )
+
+        # Handle both direct object and wrapped response
+        if isinstance(data, dict) and "res" in data:
+            data = data["res"]
 
         skipped_chore = Chore(**data)
         logger.info(f"Skipped chore {chore_id}, next due: {skipped_chore.nextDueDate}")

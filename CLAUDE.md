@@ -434,6 +434,149 @@ The client uses async/await throughout:
 - Call `await cleanup()` on server shutdown to close connections
 - Tests use `pytest-asyncio` with `asyncio_mode = "auto"`
 
+### Setting Notifications and Reminders
+
+Donetick supports notifications to remind you before, at, or after a chore's due time. The MCP server provides **simple parameters** for common use cases.
+
+**IMPORTANT**: Notifications require a chore to have a due date/time, since reminders are relative to the due time.
+
+#### Simple Approach (Recommended for MCP Clients)
+
+Use the simple parameters in `create_chore` tool:
+
+```python
+# Remind 5 minutes before due time (common for short tasks)
+create_chore(
+    name="Quick Task",
+    due_date="2025-11-06T15:00:00",  # Must have a due time
+    remind_minutes_before=5           # Positive number: minutes before
+)
+
+# Remind at exact due time
+create_chore(
+    name="Time-Sensitive Task",
+    due_date="2025-11-06T15:00:00",
+    remind_at_due_time=True
+)
+
+# Multiple reminders: 15 mins before + at due time
+create_chore(
+    name="Important Task",
+    due_date="2025-11-06T15:00:00",
+    remind_minutes_before=15,
+    remind_at_due_time=True
+)
+
+# Enable nagging (repeated reminders if not completed)
+create_chore(
+    name="Don't Forget This",
+    due_date="2025-11-06T15:00:00",
+    remind_minutes_before=10,
+    enable_nagging=True
+)
+```
+
+#### API Payload Format
+
+The MCP server automatically converts simple parameters to the API's `notificationMetadata` format:
+
+```json
+{
+  "notification": true,
+  "notificationMetadata": {
+    "templates": [
+      {"value": -5, "unit": "m"}  // 5 minutes BEFORE due time
+    ],
+    "nagging": false,
+    "predue": false
+  }
+}
+```
+
+**Key Points:**
+- `value`: Negative = before due time, Positive = after due time, 0 = at due time
+- `unit`: `"m"` (minutes), `"h"` (hours), `"d"` (days)
+- `templates`: Array of notification times (max 5 per chore)
+
+#### Advanced: Custom notification_metadata
+
+For complex scenarios, use the `notification_metadata` parameter directly:
+
+```python
+# Multiple reminders with different time units
+create_chore(
+    name="Big Project",
+    due_date="2025-11-06T17:00:00",
+    notification_metadata={
+        "templates": [
+            {"value": -1, "unit": "d"},   # 1 day before
+            {"value": -1, "unit": "h"},   # 1 hour before
+            {"value": -15, "unit": "m"},  # 15 minutes before
+            {"value": 0, "unit": "m"},    # At due time
+            {"value": 30, "unit": "m"}    # 30 minutes after (follow-up)
+        ],
+        "nagging": True,   # Repeated reminders
+        "predue": True     # Pre-due notifications
+    }
+)
+```
+
+#### Common Notification Patterns
+
+**Short tasks (5-15 minutes)**:
+```python
+remind_minutes_before=5
+```
+
+**Medium tasks (30-60 minutes)**:
+```python
+notification_metadata={
+    "templates": [
+        {"value": -15, "unit": "m"},
+        {"value": 0, "unit": "m"}
+    ]
+}
+```
+
+**Daily recurring tasks**:
+```python
+remind_minutes_before=10
+enable_nagging=True  # Keep reminding until done
+```
+
+**Important deadlines**:
+```python
+notification_metadata={
+    "templates": [
+        {"value": -1, "unit": "d"},
+        {"value": -1, "unit": "h"},
+        {"value": 0, "unit": "m"}
+    ],
+    "nagging": True,
+    "predue": True
+}
+```
+
+#### Updating Notifications
+
+To update notifications on an existing chore, use `update_chore` with the same parameters:
+
+```python
+# Add a reminder to existing chore
+update_chore(
+    chore_id=123,
+    remind_minutes_before=10
+)
+
+# Update notification metadata
+update_chore(
+    chore_id=123,
+    notification_metadata={
+        "templates": [{"value": -5, "unit": "m"}]
+    }
+)
+```
+
 ## Docker Deployment
 
 The Dockerfile uses multi-stage builds:

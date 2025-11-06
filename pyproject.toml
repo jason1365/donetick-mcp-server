@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "donetick-mcp-server"
-version = "0.3.10"
+version = "0.3.11"
 description = "MCP server for Donetick chores management with JWT authentication, Full API support, and 20 MCP tools"
 readme = "README.md"
 requires-python = ">=3.11"
