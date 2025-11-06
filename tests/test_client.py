@@ -1225,7 +1225,7 @@ class TestDonetickClient:
             assert len(history) == 2
             assert history[0].id == 1
             assert history[0].choreId == 123
-            assert history[0].completedBy == "TestUser"
+            assert history[0].completedBy == 1  # User ID (integer), not username
             assert history[0].note == "Completed successfully"
             assert history[1].id == 2
             assert history[1].note is None
@@ -1237,9 +1237,9 @@ class TestDonetickClient:
             {
                 "id": 1,
                 "choreId": 123,
-                "choreName": "Test Chore 1",
+                # Note: choreName does NOT exist in ChoreHistory model
                 "performedAt": "2025-11-05T10:00:00Z",
-                "completedBy": 1,
+                "completedBy": 1,  # User ID (integer)
                 "note": None,
                 "assignedTo": 1,
                 "dueDate": "2025-11-05T00:00:00Z",
@@ -1247,9 +1247,8 @@ class TestDonetickClient:
             {
                 "id": 2,
                 "choreId": 124,
-                "choreName": "Test Chore 2",
                 "performedAt": "2025-11-04T10:00:00Z",
-                "completedBy": 2,
+                "completedBy": 2,  # User ID (integer)
                 "note": None,
                 "assignedTo": 2,
                 "dueDate": "2025-11-04T00:00:00Z",
@@ -1272,9 +1271,9 @@ class TestDonetickClient:
 
             assert len(history) == 2
             assert history[0].choreId == 123
-            assert history[0].choreName == "Test Chore 1"
+            assert history[0].completedBy == 1
             assert history[1].choreId == 124
-            assert history[1].choreName == "Test Chore 2"
+            assert history[1].completedBy == 2
 
     @pytest.mark.asyncio
     async def test_get_chore_details(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
@@ -1296,9 +1295,9 @@ class TestDonetickClient:
             "name": "Detailed Test Chore",
             "totalCompletedCount": 5,
             "lastCompletedDate": "2025-11-05T10:00:00Z",
-            "lastCompletedBy": 1,
-            "avgDuration": "2h 30m",
-            "history": [history_entry],
+            "lastCompletedBy": 1,  # User ID (integer), not username
+            "averageDuration": 9000.5,  # Seconds (float), not "2h 30m" string
+            "completionHistory": [history_entry],  # Field name is completionHistory, not history
         }
 
         httpx_mock.add_response(
@@ -1319,7 +1318,7 @@ class TestDonetickClient:
             assert details.name == "Detailed Test Chore"
             assert details.totalCompletedCount == 5
             assert details.lastCompletedDate == "2025-11-05T10:00:00Z"
-            assert details.lastCompletedBy == "TestUser"
-            assert details.avgDuration == "2h 30m"
-            assert len(details.history) == 1
-            assert details.history[0].completedBy == "TestUser"
+            assert details.lastCompletedBy == 1  # User ID (integer)
+            assert details.averageDuration == 9000.5  # Seconds (float)
+            assert len(details.completionHistory) == 1
+            assert details.completionHistory[0].completedBy == 1  # User ID (integer)

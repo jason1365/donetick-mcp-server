@@ -272,11 +272,24 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_update_chore_assignee_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
         """Test update_chore_assignee tool execution."""
-        updated_chore = {**sample_chore_data, "assignedTo": 2}
+        # Mock GET to fetch current chore (fetch-modify-send pattern)
         httpx_mock.add_response(
-            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1/assignee",
-            json=updated_chore,
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1",
+            json={"res": sample_chore_data},
+            method="GET",
+        )
+        # Mock PUT to update chore
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/",
+            json={"message": "Chore added successfully"},
             method="PUT",
+        )
+        # Mock GET to fetch updated chore
+        updated_chore = {**sample_chore_data, "assignedTo": 2, "assignees": [{"userId": 2}]}
+        httpx_mock.add_response(
+            url="https://donetick.jason1365.duckdns.org/api/v1/chores/1",
+            json={"res": updated_chore},
+            method="GET",
         )
 
         result = await call_tool("update_chore_assignee", {"chore_id": 1, "user_id": 2})
