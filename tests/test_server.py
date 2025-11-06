@@ -1026,9 +1026,9 @@ class TestMCPServer:
             {
                 "id": 1,
                 "choreId": 123,
-                "choreName": "Test Chore 1",
+                # Note: choreName doesn't exist in ChoreHistory model
                 "performedAt": "2025-11-05T10:00:00Z",
-                "completedBy": 1,
+                "completedBy": 1,  # User ID (integer)
                 "note": None,
                 "assignedTo": 1,
                 "dueDate": "2025-11-05T00:00:00Z",
@@ -1036,9 +1036,8 @@ class TestMCPServer:
             {
                 "id": 2,
                 "choreId": 124,
-                "choreName": "Test Chore 2",
                 "performedAt": "2025-11-04T10:00:00Z",
-                "completedBy": 2,
+                "completedBy": 2,  # User ID (integer)
                 "note": None,
                 "assignedTo": 2,
                 "dueDate": "2025-11-04T00:00:00Z",
@@ -1056,10 +1055,12 @@ class TestMCPServer:
         assert "📊" in result[0].text
         assert "Chore Completion History" in result[0].text
         assert "Showing 2 entries" in result[0].text
-        assert "Test Chore 1" in result[0].text
-        assert "Test Chore 2" in result[0].text
-        assert "TestUser" in result[0].text
-        assert "TestUser2" in result[0].text
+        # Server displays "Chore #123" format (no chore names available in ChoreHistory)
+        assert "Chore #123" in result[0].text
+        assert "Chore #124" in result[0].text
+        # Server displays "user 1" format (user IDs, not usernames)
+        assert "user 1" in result[0].text
+        assert "user 2" in result[0].text
 
     @pytest.mark.asyncio
     async def test_get_chore_details_tool(self, sample_chore_data, httpx_mock: HTTPXMock, mock_login):
@@ -1081,9 +1082,9 @@ class TestMCPServer:
             "name": "Detailed Test Chore",
             "totalCompletedCount": 5,
             "lastCompletedDate": "2025-11-05T10:00:00Z",
-            "lastCompletedBy": 1,
-            "avgDuration": "2h 30m",
-            "history": [history_entry],
+            "lastCompletedBy": 1,  # User ID (integer), not username
+            "averageDuration": 9000.5,  # Field is averageDuration (float seconds), not avgDuration
+            "completionHistory": [history_entry],  # Field is completionHistory, not history
         }
 
         httpx_mock.add_response(
@@ -1098,7 +1099,9 @@ class TestMCPServer:
         assert "Chore Details: Detailed Test Chore" in result[0].text
         assert "ID: 123" in result[0].text
         assert "Total Completions: 5" in result[0].text
-        assert "Average Duration: 2h 30m" in result[0].text
+        # Server displays duration as "9000.5s" (seconds), not "2h 30m"
+        assert "9000.5s" in result[0].text
         assert "Last Completion" in result[0].text
         assert "2025-11-05T10:00:00Z" in result[0].text
-        assert "TestUser" in result[0].text
+        # Server displays "user 1" format (user ID, not username)
+        assert "user 1" in result[0].text

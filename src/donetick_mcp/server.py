@@ -1317,20 +1317,23 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             # Format grouped history
             chore_sections = []
             for chore_id, entries in by_chore.items():
-                chore_name = entries[0].choreName if entries else "Unknown"
+                # ChoreHistory has choreId (int), not choreName (string)
+                # Display as "Chore #123" since we don't have the name
+                chore_display = f"Chore #{chore_id}"
                 entry_lines = []
 
                 for entry in entries:
                     status_emoji = "✅"
-                    completed_by = entry.completedBy or "Unknown"
-                    completed_at = entry.completedAt or "Unknown"
+                    # completedBy is user ID (integer), not username (string)
+                    completed_by = f"user {entry.completedBy}" if entry.completedBy else "Unknown"
+                    completed_at = entry.performedAt or "Unknown"
 
                     entry_lines.append(
                         f"  {status_emoji} {completed_at} by {completed_by}"
                     )
 
                 section = (
-                    f"🏷️  {chore_name} (Chore ID: {chore_id})\n"
+                    f"🏷️  {chore_display}\n"
                     + "\n".join(entry_lines)
                 )
                 chore_sections.append(section)
@@ -1360,15 +1363,20 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             # Format detailed statistics
             total_count = details.totalCompletedCount or 0
             last_completed = details.lastCompletedDate or "Never"
-            last_user = details.lastCompletedBy or "N/A"
-            avg_duration = details.avgDuration or "N/A"
+            # lastCompletedBy is user ID (integer), not username
+            last_user = f"user {details.lastCompletedBy}" if details.lastCompletedBy else "N/A"
+            # Field is averageDuration (float seconds), not avgDuration
+            avg_duration = f"{details.averageDuration:.1f}s" if details.averageDuration else "N/A"
 
             # Format recent history
             recent_history = []
-            if details.history:
-                for entry in details.history[:5]:  # Show last 5
-                    completed_at = entry.completedAt or "Unknown"
-                    completed_by = entry.completedBy or "Unknown"
+            # Field is completionHistory, not history
+            if details.completionHistory:
+                for entry in details.completionHistory[:5]:  # Show last 5
+                    # Field is performedAt, not completedAt
+                    completed_at = entry.performedAt or "Unknown"
+                    # completedBy is user ID (integer), not username
+                    completed_by = f"user {entry.completedBy}" if entry.completedBy else "Unknown"
                     recent_history.append(f"  ✅ {completed_at} by {completed_by}")
 
             history_text = "\n".join(recent_history) if recent_history else "  No completions yet"
