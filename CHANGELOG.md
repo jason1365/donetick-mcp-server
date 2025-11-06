@@ -5,6 +5,23 @@ All notable changes to the Donetick MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.12] - 2025-11-06
+
+### Fixed
+- **Critical: `update_chore` frequencyMetadata time field removal**: Fixed bug where `time`, `unit`, and `timezone` fields were being removed from `frequencyMetadata` for `days_of_the_week` chores
+  - Root cause: v0.3.7 incorrectly assumed these fields were unrecognized by the API
+  - UI analysis: Examined actual POST payload from Donetick UI - it includes `time`, `unit`, and `timezone` in `frequencyMetadata` alongside `days`, `weekPattern`, `occurrences`, and `weekNumbers`
+  - Impact: Caused "400 Invalid request format" errors when updating chores with `days_of_the_week` frequency
+  - Fix: Now only adds missing required fields (`occurrences` and `weekNumbers` arrays) without removing existing fields
+  - Changed logic from "add required + remove unwanted" to "add missing required only"
+  - Preserves all fields that UI sends: `time`, `unit`, `timezone`, `days`, `weekPattern`, `occurrences`, `weekNumbers`
+
+### Technical Details
+- Updated `update_chore()` frequencyMetadata validation (client.py:447-465)
+- Removed field removal logic that was incorrectly stripping `time`, `unit`, and `timezone`
+- All 136 unit tests passing with fix in place
+- Day ordering: UI sends days in click order (not chronological), API accepts any order
+
 ## [0.3.11] - 2025-11-06
 
 ### Fixed

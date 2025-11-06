@@ -449,22 +449,18 @@ class DonetickClient:
                 logger.info(f"Validating frequencyMetadata for days_of_the_week: {freq_meta}")
 
                 # API expects specific fields for days_of_the_week frequency
-                # Based on v0.3.7 fix: days, weekPattern, occurrences, weekNumbers
+                # Required: days, weekPattern, occurrences, weekNumbers
+                # Optional: time, unit, timezone (UI includes these)
                 if isinstance(freq_meta, dict):
                     # Add required empty arrays if missing
                     if "occurrences" not in freq_meta:
                         freq_meta["occurrences"] = []
+                        logger.info("Added missing 'occurrences' array")
                     if "weekNumbers" not in freq_meta:
                         freq_meta["weekNumbers"] = []
+                        logger.info("Added missing 'weekNumbers' array")
 
-                    # Remove fields that API doesn't recognize for days_of_the_week
-                    # time, unit, timezone should be handled separately via notificationMetadata
-                    extra_fields = {"time", "unit", "timezone"}
-                    for field in extra_fields:
-                        if field in freq_meta:
-                            logger.info(f"Removing unrecognized field from frequencyMetadata: {field}")
-                            freq_meta.pop(field)
-
+                    # Keep time, unit, timezone if present - the UI sends them and API accepts them
                     chore_dict["frequencyMetadata"] = freq_meta
                     logger.info(f"Fixed frequencyMetadata: {freq_meta}")
             else:
